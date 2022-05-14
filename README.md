@@ -26,7 +26,44 @@ process_event(Event.Message("test"))
 
 The focus is on sum types, since product types are already well-served by the language.
 
+ADTs may also be generic:
+
+```python
+from __future__ import annotations
+
+T = TypeVar("T")
+
+
+class Tree(ADT[T]):
+    EMPTY = "empty"
+
+    @dataclass
+    class Node:
+        left: Tree[T]
+        right: Tree[T]
+```
+
+This requires the postponed evaluation of annotations (aka PEP 563), which is activated by importing `annotations` from `__future__`.
+
 ## The differences between Python enums (PEP 435) and ADTs
+
+### No methods on the ADT class
+
+Enums may define methods which are available on all their members.
+
+```python
+class EnumWithMethod(Enum):
+    A = 1
+    B = 2
+
+    def is_a(self) -> bool:
+        return self._value_ == 1
+
+>>> EnumWithMethod.A.is_a()
+True
+```
+
+Since this would require invasive changes to the class members of the ADTs, this is not supported.
 
 ### No mixins
 
