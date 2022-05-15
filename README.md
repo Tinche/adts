@@ -1,10 +1,8 @@
 # ADTs for Python
 
-Create algebraic data types (ADTs) easily, using syntax based on the `enum` module.
+Create algebraic data types (ADTs) easily, using syntax modeled on the `enum` module.
 
-In simple terms, picture enriching the `enum` module with support for member classes, in addition to constant values.
-
-A simple example:
+In simple terms, picture enriching the `enum` module with support for member classes in addition to constant values.
 
 ```python
 class Event(ADT):
