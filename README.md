@@ -26,6 +26,8 @@ process_event(Event.Message("test"))
 
 The focus is on sum types, since product types are already well-served by the language.
 
+#### Generics are supported
+
 ADTs may also be generic:
 
 ```python
@@ -44,6 +46,23 @@ class Tree(ADT[T]):
 ```
 
 This requires the postponed evaluation of annotations (aka PEP 563), which is activated by importing `annotations` from `__future__`.
+
+#### Class members may be defined externally
+
+A class member can, but doesn't have to be defined inside the ADT.
+
+```python
+@dataclass
+class Outer:
+    a: int
+
+class MyADT(ADT):
+    @dataclass
+    class Inner:
+        b: int
+
+    Outer = Outer
+```
 
 ## The differences between Python enums (PEP 435) and ADTs
 
