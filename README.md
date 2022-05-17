@@ -75,7 +75,7 @@ class IntEnum(int, Enum):
     A = 1
 ```
 
-This adds the mixed-in class to each member's MRO, so `instance(IntEnum.A, int)` holds.
+This adds the mixed-in class to each member's MRO, so `isinstance(IntEnum.A, int)` holds.
 
 Since ADTs can be heterogenous, no class may be mixed in.
 
