@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import TypeVar
 
+import pytest
+
 from adt import ADT
 
 
@@ -29,3 +31,10 @@ class Option(ADT[T]):
 def test_iteration():
     assert list(Option[int].NONE) == []
     assert list(Option[int].Some(1)) == [1]
+
+
+def test_methods():
+    assert Option.Some(1).unwrap() == 1
+
+    with pytest.raises(Exception):
+        Option.NONE.unwrap()
