@@ -19,7 +19,8 @@ def process_event(event: Event) -> str:
         case Event.Message(msg):
             return f"Message: {msg}"
 
-process_event(Event.Message("test"))
+>>> process_event(Event.Message("test"))
+"Message: test"
 ```
 
 The focus is on sum types, since product types are already well-served by the language.
@@ -45,42 +46,25 @@ class Tree(ADT[T]):
 
 This requires the postponed evaluation of annotations (aka PEP 563), which is activated by importing `annotations` from `__future__`.
 
-#### Class members may be defined externally
+#### Class enum members get methods from the enum
 
-A class member can, but doesn't have to be defined inside the ADT.
+A class member will have access to any method on the enum.
+Since this involves replacing the class with a special subclass, class members must be defined inside the enum.
 
 ```python
-@dataclass
-class Outer:
-    a: int
-
 class MyADT(ADT):
     @dataclass
     class Inner:
         b: int
 
-    Outer = Outer
+    def a_method(self) -> int:
+        return 1
+
+>>> MyADT.Inner(1).a_method()
+1
 ```
 
 ## The differences between Python enums (PEP 435) and ADTs
-
-### No methods on the ADT class
-
-Enums may define methods which are available on all their members.
-
-```python
-class EnumWithMethod(Enum):
-    A = 1
-    B = 2
-
-    def is_a(self) -> bool:
-        return self._value_ == 1
-
->>> EnumWithMethod.A.is_a()
-True
-```
-
-Since this would require invasive changes to the class members of the ADTs, this is not supported.
 
 ### No mixins
 
@@ -91,7 +75,7 @@ class IntEnum(int, Enum):
     A = 1
 ```
 
-This adds the mixed-in class to each member's MRO, so `instance(IntEnum.A, int)` holds.
+This adds the mixed-in class to each member's MRO, so `isinstance(IntEnum.A, int)` holds.
 
 Since ADTs can be heterogenous, no class may be mixed in.
 

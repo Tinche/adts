@@ -9,7 +9,12 @@ from enum import (
     _make_class_unpicklable,
     _reduce_ex_by_name,
 )
-from types import DynamicClassAttribute, GenericAlias, MappingProxyType
+from types import (
+    DynamicClassAttribute,
+    GenericAlias,
+    MappingProxyType,
+    new_class,
+)
 from typing import Any
 
 
@@ -32,34 +37,32 @@ class ADTMeta(type):
         enum_dict = _EnumDict()
         enum_dict._cls_name = cls
         # inherit previous flags and _generate_next_value_ function
-        if len(bases) > 1:
+        if len(bases) > 1 and not any(hasattr(b, "_unsealed") for b in bases):
             raise TypeError("ADTs do not support mixins")
-        member_type, first_enum = metacls._get_mixins_(cls, bases)
-        if first_enum is not None:
-            enum_dict["_generate_next_value_"] = getattr(
-                first_enum,
-                "_generate_next_value_",
-                None,
-            )
+        # member_type, first_enum = metacls._get_mixins_(cls, bases)
+        # if first_enum is not None:
+        #     enum_dict["_generate_next_value_"] = getattr(
+        #         first_enum,
+        #         "_generate_next_value_",
+        #         None,
+        #     )
         return enum_dict
 
     def __new__(metacls, cls, bases, classdict, **kwds):
-        # an Enum class is final once enumeration items have been defined; it
-        # cannot be mixed with other types (int, float, etc.) if it has an
-        # inherited __new__ unless a new __new__ is defined (or the resulting
-        # class will fail).
+        # an ADT class is final once enumeration items have been defined.
         #
         # remove any keys listed in _ignore_
         classdict.setdefault("_ignore_", []).append("_ignore_")
         ignore = classdict["_ignore_"]
         for key in ignore:
             classdict.pop(key, None)
-        member_type, first_enum = metacls._get_mixins_(cls, bases)
+        member_type, first_enum = metacls._get_mixins_(cls, [])
         __new__, save_new, use_args = metacls._find_new_(
             classdict,
             member_type,
             first_enum,
         )
+        custom_methods = metacls._gather_user_methods(classdict) if bases else {}
 
         # save enum items into separate mapping so they don't get baked into
         # the new class
@@ -87,6 +90,7 @@ class ADTMeta(type):
         enum_class._values_map_ = {}  # only for values, not classes
         enum_class._member_type_ = member_type
         enum_class._cls_set_ = set()
+        enum_class._unsealed = True
 
         # save DynamicClassAttribute attributes from super classes so we know
         # if we can take the shortcut of storing members in the class dict
@@ -149,6 +153,11 @@ class ADTMeta(type):
         # we instantiate first instead of checking for duplicates first in case
         # a custom __new__ is doing something funky with the values -- such as
         # auto-numbering ;)
+
+        def customize_subclass_ns(ns: dict[str, Any]):
+            for k, v in custom_methods.items():
+                ns[k] = v
+
         for member_name in classdict._member_names:
             value = enum_members[member_name]
             if not isinstance(value, tuple):
@@ -161,8 +170,12 @@ class ADTMeta(type):
             value_is_cls = isinstance(value, type)
 
             if value_is_cls:
-                enum_member = value
-                enum_class._cls_set_.add(value)
+                # We subclass the class to add he enum_class to its MRO
+                subclass = new_class(
+                    value.__qualname__, (value,), exec_body=customize_subclass_ns
+                )
+                enum_member = subclass
+                enum_class._cls_set_.add(subclass)
             else:
                 if not use_args:
                     enum_member = __new__(enum_class)
@@ -238,6 +251,7 @@ class ADTMeta(type):
             if _order_ != enum_class._member_names_:
                 raise TypeError("member order does not match _order_")
 
+        delattr(enum_class, "_unsealed")
         return enum_class
 
     def __bool__(self):
@@ -464,7 +478,11 @@ class ADTMeta(type):
     def _check_for_existing_members(class_name, bases):
         for chain in bases:
             for base in chain.__mro__:
-                if issubclass(base, ADT) and base._member_names_:
+                if (
+                    issubclass(base, ADT)
+                    and base._member_names_
+                    and not hasattr(base, "_unsealed")
+                ):
                     raise TypeError(
                         "%s: cannot extend enumeration %r" % (class_name, base.__name__)
                     )
@@ -565,6 +583,15 @@ class ADTMeta(type):
             use_args = True
         return __new__, save_new, use_args
 
+    @staticmethod
+    def _gather_user_methods(classdict: dict[str, Any]) -> dict:
+        res = {}
+        for k, v in classdict.items():
+            if callable(v):
+                res[k] = v
+
+        return res
+
 
 class ADT(metaclass=ADTMeta):
     """
@@ -574,7 +601,7 @@ class ADT(metaclass=ADTMeta):
     """
 
     def __new__(cls, value):
-        # all enum instances are actually created during class construction
+        # all adt constants are actually created during class construction
         # without calling this method; this method is called by the metaclass'
         # __call__ (i.e. Color(3) ), and by pickle
         val_type = type(value)
